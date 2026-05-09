@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pantry Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;600&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1a1a18;--paper:#f5f2ec;--paper2:#edeae2;
+  --red:#c0392b;--red-light:#f9eeec;
+  --amber:#d4820a;--amber-light:#fdf3e0;
+  --green:#2d6a4f;--green-light:#e8f4ef;
+  --blue:#1d4e89;--blue-light:#e8f0f9;
+  --purple:#6b3fa0;--purple-light:#f0eaf8;
+  --muted:#8a8778;--border:#ddd9cf;--card:#fff;
+  --shadow:0 1px 6px rgba(0,0,0,.07);
+  --radius:10px;--sidebar:220px;
+  --fd:'Noto Serif TC',serif;--fb:'DM Sans',sans-serif;--fm:'DM Mono',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--fb);background:var(--paper);color:var(--ink);min-height:100vh;font-size:13px;line-height:1.4;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+
+/* ══ LAYOUT ══ */
+.app-wrap{display:flex;min-height:100vh}
+
+/* ══ SIDEBAR ══ */
+.sidebar{
+  width:var(--sidebar);flex-shrink:0;
+  background:var(--ink);color:var(--paper);
+  display:flex;flex-direction:column;
+  position:fixed;top:0;left:0;bottom:0;
+  z-index:300;
+  transition:transform .25s cubic-bezier(.25,.46,.45,.94);
+  overflow:hidden;
+}
+.sidebar.collapsed{transform:translateX(calc(-1 * var(--sidebar)))}
+
+.sidebar-header{padding:16px 14px 10px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-title{font-family:var(--fd);font-size:15px;font-weight:600;color:var(--paper)}
+.sidebar-close{background:none;border:none;color:rgba(255,255,255,.5);font-size:20px;cursor:pointer;padding:2px 4px;line-height:1;touch-action:manipulation}
+.sidebar-close:active{color:var(--paper)}
+
+.sidebar-nav{flex:1;overflow-y:auto;padding:8px 0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;font-weight:400;transition:all .15s;touch-action:manipulation;border:none;background:none;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.06);color:var(--paper)}
+.nav-item.active{background:rgba(255,255,255,.12);color:#fff;font-weight:500}
+.nav-item .ni{font-size:17px;flex-shrink:0}
+.nav-item .nl{flex:1}
+
+/* ══ MAIN ══ */
+.main-area{
+  flex:1;min-width:0;
+  margin-left:var(--sidebar);
+  transition:margin-left .25s cubic-bezier(.25,.46,.45,.94);
+  display:flex;flex-direction:column;min-height:100vh;
+}
+.main-area.full{margin-left:0}
+
+/* top bar */
+.topbar{
+  background:var(--card);border-bottom:1px solid var(--border);
+  padding:0 14px;height:46px;display:flex;align-items:center;gap:10px;
+  position:sticky;top:0;z-index:100;
+}
+.menu-btn{background:none;border:none;color:var(--ink);font-size:20px;cursor:pointer;padding:4px;touch-action:manipulation;line-height:1;display:flex;align-items:center;justify-content:center}
+.topbar-title{font-family:var(--fd);font-size:14px;font-weight:600;flex:1}
+.shop-float{display:flex;align-items:center;gap:5px;background:var(--ink);color:var(--paper);border:none;border-radius:99px;padding:5px 12px;font-size:12px;font-weight:500;cursor:pointer;touch-action:manipulation;font-family:var(--fb)}
+.shop-float .badge{background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:99px;padding:1px 5px;min-width:15px;text-align:center}
+
+/* overlay when sidebar open on mobile */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:299}
+.sidebar-overlay.show{display:block}
+
+/* ══ VIEWS ══ */
+.view{display:none;padding:12px 14px 60px}
+.view.active{display:block}
+
+/* ══ SECTION HEAD ══ */
+.sh{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.sh h2{font-family:var(--fd);font-size:16px;font-weight:600}
+.sh .meta{color:var(--muted);font-size:11px;margin-left:auto}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:8px;border:none;cursor:pointer;font-family:var(--fb);font-size:12px;font-weight:500;transition:all .15s;touch-action:manipulation}
+.btn-p{background:var(--ink);color:var(--paper)}
+.btn-g{background:transparent;color:var(--ink);border:1px solid var(--border)}
+.btn-g:active{background:var(--paper2)}
+
+/* ══ CAT PILLS — wrap, no scroll ══ */
+.cat-bar{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.cat-pill{background:var(--card);border:1px solid var(--border);border-radius:99px;padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap;font-family:var(--fb);color:var(--ink);touch-action:manipulation;transition:all .15s}
+.cat-pill.active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+/* ══ ALERT ══ */
+.alert-bar{background:#fff8f7;border:1px solid #f0c8c3;border-radius:var(--radius);padding:9px 12px;margin-bottom:11px}
+.alert-title{font-weight:500;color:var(--red);font-size:12px;margin-bottom:2px}
+.alert-items{font-size:11px;color:#7a3030;line-height:1.7}
+
+/* ══ PANTRY ROWS — ultra compact, in/out only ══ */
+.pantry-list{display:flex;flex-direction:column;gap:0}
+.prow-wrap{overflow:hidden;position:relative;border-bottom:1px solid var(--border)}
+.prow-wrap:first-child{border-top:1px solid var(--border)}
+.prow-slider{display:flex;transition:transform .22s cubic-bezier(.25,.46,.45,.94);will-change:transform}
+
+/* out-of-stock rows float to top with red left border */
+.prow-wrap.out{border-left:3px solid var(--red)}
+.prow-wrap.out .prow{background:#fff8f7}
+
+/* main row */
+.prow{flex:0 0 100%;min-width:0;background:var(--card);padding:8px 12px;display:flex;align-items:center;gap:8px}
+.prow-name{font-weight:500;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ptag{display:inline-block;font-size:9px;padding:1px 5px;border-radius:99px;flex-shrink:0}
+.ptag-e{color:#7d5a00;font-size:12px;flex-shrink:0} /* just the ★ char, no bg */
+.ptag-out{background:var(--red-light);color:var(--red);border:1px solid #f0c8c3;font-size:9px;padding:1px 5px;border-radius:99px;flex-shrink:0}
+/* in-stock dot */
+.prow-dot{width:8px;height:8px;border-radius:99px;flex-shrink:0}
+.prow-dot.in{background:var(--green)}
+.prow-dot.out{background:var(--red)}
+.prow-cat{font-size:10px;color:var(--muted);flex-shrink:0}
+
+/* right panel: Edit + Cart + Delete (swipe LEFT) */
+.prow-right-panel{flex:0 0 220px;min-width:220px;background:var(--ink);display:flex;align-items:stretch}
+.prp-btn{flex:1;border:none;cursor:pointer;font-family:var(--fb);font-size:10px;font-weight:500;touch-action:manipulation;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px 2px}
+.prp-btn .pi{font-size:15px}
+.prp-edit{background:rgba(255,255,255,.12);color:var(--paper)}
+.prp-stock{background:rgba(100,100,200,.35);color:#c8d0ff}
+.prp-cart{background:rgba(45,106,79,.6);color:#b8f0d0}
+.prp-del{background:rgba(192,57,43,.5);color:#ffcbc7}
+.prp-cart-on{background:rgba(45,106,79,.85)!important;color:#fff}
+.prp-btn:active{filter:brightness(1.2)}
+
+/* ══ PLANNER ══ */
+/* 2-week mini calendar */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.cal-nav h3{font-family:var(--fd);font-size:13px;font-weight:600;color:var(--muted)}
+.cal-nav-btn{background:none;border:1px solid var(--border);border-radius:6px;padding:3px 10px;cursor:pointer;font-size:13px;touch-action:manipulation;font-family:var(--fb);color:var(--ink)}
+.cal-nav-btn:active{background:var(--paper2)}
+
+/* 2-row strip: week 1 + week 2 */
+.cal-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:14px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:8px 6px}
+.cal-cell{display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 2px;border-radius:7px;cursor:pointer;touch-action:manipulation;transition:background .12s;border:1.5px solid transparent}
+.cal-dn{font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cal-dd{font-size:13px;font-weight:500;line-height:1}
+.cal-dots{display:flex;gap:2px;min-height:4px;margin-top:1px}
+.cal-dot{width:3px;height:3px;border-radius:99px;background:var(--amber)}
+.cal-cell.today{background:var(--ink)}
+.cal-cell.today .cal-dn,.cal-cell.today .cal-dd{color:var(--paper)}
+.cal-cell.today .cal-dot{background:#c8b99a}
+.cal-cell.selected{border-color:var(--blue)}
+.cal-cell.has-meal .cal-dd{color:var(--green);font-weight:600}
+.cal-week-sep{grid-column:1/-1;height:1px;background:var(--border);margin:4px 0}
+
+/* 7-row week planner (Mon–Sun stacked) */
+.planner-grid{display:flex;flex-direction:column;gap:5px;margin-bottom:16px}
+.day-col{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);display:flex;flex-direction:row;min-height:52px;box-shadow:var(--shadow);transition:border-color .12s,background .12s}
+.day-col.drag-over{border-color:var(--blue);background:var(--blue-light)}
+/* header becomes a left sidebar within each row */
+.day-head{padding:8px 10px;border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;flex-shrink:0}
+.day-col.today .day-head{background:var(--ink);border-radius:var(--radius) 0 0 var(--radius)}
+.day-dn{font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.day-col.today .day-dn,.day-col.today .day-dd{color:var(--paper)}
+.day-dd{font-size:14px;font-weight:700;line-height:1}
+/* meals area fills the rest of the row horizontally */
+.day-meals{padding:6px 8px;flex:1;display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;align-items:flex-start}
+.meal-chip{background:var(--paper2);border-radius:5px;padding:4px 7px;font-size:11px;font-weight:500;border:1px solid var(--border);display:flex;align-items:center;gap:3px;user-select:none;-webkit-user-select:none;touch-action:none;cursor:grab;line-height:1.3}
+.meal-chip.dragging{opacity:.3}
+.meal-chip-name{word-break:break-word}
+.meal-chip-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 1px;line-height:1;touch-action:manipulation;flex-shrink:0}
+.day-drop-hint{border:1px dashed var(--border);border-radius:5px;padding:4px 8px;color:var(--muted);font-size:10px;align-self:center}
+
+/* idea pool */
+.idea-pool{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:12px;box-shadow:var(--shadow)}
+.ip-title{font-family:var(--fd);font-size:13px;font-weight:600;margin-bottom:3px}
+.ip-hint{font-size:10px;color:var(--muted);margin-bottom:8px}
+.idea-cards{display:flex;flex-wrap:wrap;gap:5px;min-height:32px}
+.idea-card{background:var(--amber-light);border:1px solid #f0d9a0;border-radius:99px;padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:5px;user-select:none;-webkit-user-select:none;touch-action:none;cursor:grab;transition:opacity .15s}
+.idea-card.dragging{opacity:.3}
+.idea-card button{background:none;border:none;cursor:pointer;color:var(--amber);font-size:15px;padding:0;line-height:1;touch-action:manipulation}
+.idea-input-row{display:flex;gap:6px;margin-top:9px}
+.idea-input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:7px;font-family:var(--fb);font-size:13px;background:var(--paper);color:var(--ink);outline:none}
+.idea-input:focus{border-color:var(--ink)}
+
+/* drag ghost */
+.drag-ghost{position:fixed;pointer-events:none;z-index:9999;opacity:.9;transform:scale(1.05) rotate(-2deg);background:var(--amber-light);border:1.5px solid #e8c070;border-radius:99px;padding:5px 12px;font-size:12px;font-family:var(--fb);color:var(--ink);box-shadow:0 6px 20px rgba(0,0,0,.2);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
+
+/* ══ SHOPPING (modal overlay) ══ */
+.shop-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:400;align-items:flex-end;justify-content:center}
+.shop-modal.open{display:flex}
+@media(min-width:500px){.shop-modal{align-items:center}}
+.shop-sheet{background:var(--card);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:14px 16px 44px;max-height:88vh;overflow-y:auto}
+@media(min-width:500px){.shop-sheet{border-radius:14px;max-height:82vh}}
+.shop-handle{width:34px;height:4px;background:var(--border);border-radius:99px;margin:0 auto 12px}
+.shop-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.shop-header h2{font-family:var(--fd);font-size:16px;font-weight:600;flex:1}
+.shop-grid{display:flex;flex-direction:column;gap:10px}
+@media(min-width:440px){.shop-grid{display:grid;grid-template-columns:1fr 1fr}}
+.shop-sec{background:var(--paper);border-radius:var(--radius);border:1px solid var(--border);padding:11px}
+.shop-sec h3{font-family:var(--fd);font-size:13px;margin-bottom:8px}
+.shop-item{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.shop-item:last-child{border-bottom:none}
+.shop-chk{width:16px;height:16px;cursor:pointer;accent-color:var(--ink);flex-shrink:0;margin-top:1px}
+.shop-item.chk{opacity:.4;text-decoration:line-through}
+.shop-qty{font-family:var(--fm);font-size:10px;color:var(--muted);margin-left:auto;white-space:nowrap;padding-left:6px}
+.shop-ess{font-size:9px;color:var(--amber);display:block;margin-top:1px}
+
+/* ══ DOG ══ */
+.dog-sec{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:12px;box-shadow:var(--shadow);margin-bottom:10px}
+.dog-sec h3{font-family:var(--fd);font-size:14px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.drow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)}
+.drow:last-child{border-bottom:none}
+.dlabel{flex:1;font-size:12px;font-weight:500}
+.dsub{font-size:10px;color:var(--muted);display:block;margin-top:1px}
+.dalert{font-size:10px;color:var(--red);display:block;margin-top:2px;font-weight:500}
+.dval{font-family:var(--fm);font-size:13px;font-weight:600;min-width:28px;text-align:right}
+.dqb{width:28px;height:28px;border-radius:6px;border:1px solid var(--border);background:var(--paper);cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;color:var(--ink);touch-action:manipulation}
+.dqb:active{background:var(--ink);color:var(--paper)}
+.dbuy{background:var(--green-light);border:1px solid #b8dece;border-radius:7px;padding:5px 10px;color:var(--green);font-family:var(--fb);font-size:11px;cursor:pointer;touch-action:manipulation;white-space:nowrap}
+.dbuy:active{background:#c4e0d5}
+.ddate{background:var(--blue-light);border:1px solid #b0c8e8;border-radius:7px;padding:5px 10px;color:var(--blue);font-family:var(--fb);font-size:11px;cursor:pointer;touch-action:manipulation;white-space:nowrap}
+.ddate:active{background:#c4d8f0}
+.dlog{font-size:11px;color:var(--muted);line-height:1.9;text-align:right}
+/* countdown pill */
+.countdown-pill{display:inline-flex;align-items:center;gap:4px;border-radius:99px;padding:3px 10px;font-size:11px;font-weight:600;margin-top:4px}
+.countdown-pill.urgent{background:var(--red-light);color:var(--red);border:1px solid #f0c8c3}
+.countdown-pill.warn{background:var(--amber-light);color:var(--amber);border:1px solid #f0d9a0}
+.countdown-pill.ok{background:var(--green-light);color:var(--green);border:1px solid #b8dece}
+/* progress bar */
+.dprog-wrap{flex:1;display:flex;flex-direction:column;gap:3px}
+.dprog{height:4px;background:var(--border);border-radius:99px;overflow:hidden}
+.dprog-fill{height:100%;border-radius:99px;transition:width .3s}
+
+/* ══ MODAL (add/edit) ══ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:flex-end;justify-content:center}
+@media(min-width:500px){.modal-overlay{align-items:center}}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);width:100%;max-width:440px;border-radius:18px 18px 0 0;padding:14px 16px 44px;max-height:94vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+@media(min-width:500px){.modal{border-radius:14px;padding:20px;max-height:86vh}}
+.modal-handle{width:34px;height:4px;background:var(--border);border-radius:99px;margin:0 auto 12px}
+.modal h3{font-family:var(--fd);font-size:15px;margin-bottom:13px}
+.fr{margin-bottom:10px}
+.fl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;display:block}
+.fi,.fs{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;font-family:var(--fb);font-size:15px;background:var(--paper);color:var(--ink);outline:none;-webkit-appearance:none;appearance:none}
+.fi:focus,.fs:focus{border-color:var(--ink)}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fck{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0}
+.modal-foot{display:flex;gap:6px;margin-top:13px}
+.modal-foot .btn{flex:1;justify-content:center;padding:11px;font-size:14px}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
+</style>
+</head>
+<body>
+<div class="app-wrap">
+
+<!-- ══ SIDEBAR ══ -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <span class="sidebar-title">Pantry Manager</span>
+    <button class="sidebar-close" onclick="toggleSidebar()">✕</button>
+  </div>
+  <div class="sidebar-nav">
+    <button class="nav-item active" onclick="showView('pantry',this)"><span class="ni">📦</span><span class="nl">Pantry</span></button>
+    <button class="nav-item" onclick="showView('planner',this)"><span class="ni">📅</span><span class="nl">Meal Planner</span></button>
+    <button class="nav-item" onclick="showView('dog',this)"><span class="ni">🐾</span><span class="nl">Lachi</span></button>
+  </div>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- ══ MAIN ══ -->
+<div class="main-area" id="main-area">
+  <div class="topbar">
+    <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+    <span class="topbar-title" id="topbar-title">Pantry</span>
+    <span id="sync-status" style="font-size:10px;transition:opacity 1s;opacity:0;margin-right:4px"></span>
+    <button class="shop-float" onclick="openShop()">🛒 <span class="badge" id="shop-badge" style="display:none">0</span></button>
+  </div>
+
+  <!-- PANTRY -->
+  <div class="view active" id="view-pantry">
+    <div id="alert-area"></div>
+    <div class="sh">
+      <h2>Stock</h2>
+      <span class="meta" id="pantry-meta"></span>
+      <button class="btn btn-p" onclick="openAddModal()">+ Add</button>
+    </div>
+    <div class="cat-bar" id="cat-bar">
+      <button class="cat-pill active" onclick="filterCat('all',this)">All</button>
+      <button class="cat-pill" onclick="filterCat('canned',this)">🥫 Canned</button>
+      <button class="cat-pill" onclick="filterCat('noodle',this)">🍜 Noodles</button>
+      <button class="cat-pill" onclick="filterCat('dry',this)">🌾 Dry</button>
+      <button class="cat-pill" onclick="filterCat('herbs',this)">🌿 Herbs</button>
+      <button class="cat-pill" onclick="filterCat('spices',this)">🫙 Spices</button>
+      <button class="cat-pill" onclick="filterCat('fridge',this)">❄️ Fridge</button>
+      <button class="cat-pill" onclick="filterCat('freezer',this)">🧊 Freezer</button>
+    </div>
+    <div class="pantry-list" id="pantry-list"></div>
+  </div>
+
+  <!-- PLANNER -->
+  <div class="view" id="view-planner">
+    <div class="sh"><h2>Meal Planner</h2></div>
+    <div class="cal-nav">
+      <button class="cal-nav-btn" onclick="shiftWeek(-1)">‹</button>
+      <h3 id="cal-range"></h3>
+      <button class="cal-nav-btn" onclick="shiftWeek(1)">›</button>
+    </div>
+    <div class="cal-strip" id="cal-strip"></div>
+    <div class="planner-grid" id="planner-grid"></div>
+    <div class="idea-pool">
+      <div class="ip-title">💡 Idea Pool</div>
+      <div class="ip-hint">Hold &amp; drag a dish onto any day column above</div>
+      <div class="idea-cards" id="idea-pool-cards"></div>
+      <div class="idea-input-row">
+        <input class="idea-input" id="idea-input" placeholder="Add dish idea…" onkeydown="if(event.key==='Enter')addIdea()">
+        <button class="btn btn-g" onclick="addIdea()">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DOG -->
+  <div class="view" id="view-dog">
+    <div class="sh"><h2>🐾 Lachi's Corner</h2></div>
+
+    <div class="dog-sec">
+      <h3>🍗 Dog Food</h3>
+      <div class="drow">
+        <div class="dlabel">
+          Portions left
+          <span class="dsub">1 portion/day · buy when running low</span>
+          <span class="dalert" id="food-alert" style="display:none">⚠️ Running low — restock soon!</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="dval" id="food-qty"></span>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <button class="dbuy" onclick="buyFood(12)">Bought +12</button>
+            <button class="dbuy" onclick="buyFood(24)">Bought +24</button>
+          </div>
+        </div>
+      </div>
+      <div class="drow">
+        <div class="dlabel">
+          Days of food left
+          <div id="food-countdown"></div>
+        </div>
+        <div class="dprog-wrap">
+          <div class="dprog"><div class="dprog-fill" id="food-prog" style="background:var(--green)"></div></div>
+        </div>
+      </div>
+      <div class="drow" style="align-items:flex-start">
+        <div class="dlabel">Purchase log</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:1">
+          <button onclick="clearAllFoodRecords()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;touch-action:manipulation;text-decoration:underline">Clear all</button>
+          <div id="food-log" style="width:100%"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dog-sec">
+      <h3><span style="display:inline-flex;align-items:center;gap:5px;background:var(--purple-light);border:1px solid #d0b8f0;border-radius:99px;padding:2px 10px;font-size:12px;color:var(--purple)">💊 NexGard</span></h3>
+      <div class="drow">
+        <div class="dlabel">
+          Coverage status
+          <span class="dalert" id="ng-alert" style="display:none">⚠️ No active coverage — restock!</span>
+        </div>
+        <div id="ng-status" style="font-size:12px;color:var(--muted);text-align:right"></div>
+      </div>
+      <div class="drow">
+        <div class="dlabel">Next purchase due<div id="ng-countdown"></div></div>
+        <div class="dprog-wrap">
+          <div class="dprog"><div class="dprog-fill" id="ng-prog" style="background:var(--purple)"></div></div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px;text-align:right" id="ng-next-date"></div>
+        </div>
+      </div>
+      <div class="drow" style="align-items:flex-start;flex-wrap:wrap;gap:8px">
+        <div class="dlabel">Purchase log</div>
+        <div style="display:flex;gap:5px">
+          <button class="dbuy" onclick="buyNG(6)">+6 doses (6 mo)</button>
+          <button class="dbuy" onclick="buyNG(12)">+12 doses (12 mo)</button>
+        </div>
+      </div>
+      <div id="ng-log-list"></div>
+    </div>
+
+    <div class="dog-sec">
+      <h3>🛁 Bath Record</h3>
+      <div class="drow">
+        <div class="dlabel">Last bath <span class="dsub" id="bath-ago"></span></div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)" id="bath-last"></span>
+          <button class="ddate" onclick="recordBath()">Record today</button>
+        </div>
+      </div>
+      <div class="drow" style="align-items:flex-start">
+        <div class="dlabel">History</div>
+        <div class="dlog" id="bath-log"></div>
+      </div>
+    </div>
+
+    <div class="dog-sec">
+      <h3>💉 Vaccination</h3>
+      <div class="drow" style="align-items:flex-start;flex-wrap:wrap;gap:8px">
+        <div class="dlabel">Vaccines</div>
+        <button class="ddate" onclick="openVaxModal()">+ Add vaccine</button>
+      </div>
+      <div id="vax-list"></div>
+    </div>
+  </div>
+</div><!-- end main-area -->
+</div><!-- end app-wrap -->
+
+<!-- FOOD LOG EDIT MODAL -->
+<div class="modal-overlay" id="food-modal" onclick="if(event.target===this)closeFoodModal()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="food-modal-title">Edit Purchase</h3>
+    <div class="fr"><label class="fl">Date</label><input class="fi" id="ff-date" type="date"></div>
+    <div class="fr"><label class="fl">Portions bought</label>
+      <select class="fs" id="ff-qty">
+        <option value="12">12 portions</option>
+        <option value="24">24 portions</option>
+      </select>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-g" onclick="closeFoodModal()">Cancel</button>
+      <button class="btn btn-p" onclick="saveFoodRecord()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- VAX MODAL -->
+<div class="modal-overlay" id="vax-modal" onclick="if(event.target===this)closeVaxModal()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="vax-modal-title">Add Vaccine Record</h3>
+    <div class="fr"><label class="fl">Vaccine name</label><input class="fi" id="vf-name" placeholder="e.g. Rabies, DHPPi, Bordetella…" autocomplete="off"></div>
+    <div class="fr"><label class="fl">Date given</label><input class="fi" id="vf-date" type="date"></div>
+    <div class="fr"><label class="fl">Next due (optional)</label><input class="fi" id="vf-next" type="date"></div>
+    <div class="fr"><label class="fl">Notes (optional)</label><input class="fi" id="vf-notes" placeholder="e.g. Vet: Dr Lee, Batch #…"></div>
+    <div class="modal-foot">
+      <button class="btn btn-g" onclick="closeVaxModal()">Cancel</button>
+      <button class="btn btn-p" onclick="saveVaxRecord()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHOPPING MODAL -->
+<div class="shop-modal" id="shop-modal" onclick="if(event.target===this)closeShop()">
+  <div class="shop-sheet">
+    <div class="shop-handle"></div>
+    <div class="shop-header">
+      <h2>🛒 Shopping List</h2>
+      <button class="btn btn-g" style="font-size:11px;padding:5px 9px" onclick="clearChecked()">Clear done</button>
+      <button class="btn btn-p" style="font-size:11px;padding:5px 9px" onclick="copyList()">Copy</button>
+      <button class="btn btn-g" style="font-size:11px;padding:5px 9px" onclick="closeShop()">✕</button>
+    </div>
+    <div class="shop-grid" id="shop-grid"></div>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3 id="modal-title">Add Item</h3>
+    <div class="fr"><label class="fl">Name</label><input class="fi" id="f-name" placeholder="e.g. Oyster sauce" autocomplete="off"></div>
+    <div class="fr"><label class="fl">Category</label>
+      <select class="fs" id="f-cat">
+        <option value="canned">🥫 Canned</option>
+        <option value="noodle">🍜 Noodles</option>
+        <option value="dry">🌾 Dry Goods</option>
+        <option value="herbs">🌿 Herbs</option>
+        <option value="spices">🫙 Spices</option>
+        <option value="fridge">❄️ Fridge</option>
+        <option value="freezer">🧊 Freezer</option>
+      </select>
+    </div>
+    <div class="fr"><label class="fl">In stock?</label>
+      <select class="fs" id="f-qty">
+        <option value="1">✅ Yes — I have it</option>
+        <option value="0">❌ No — out of stock</option>
+      </select>
+    </div>
+    <div class="fck">
+      <input type="checkbox" id="f-ess" style="width:17px;height:17px;accent-color:var(--amber);flex-shrink:0">
+      <label for="f-ess">Essential item ★ (auto-adds to shopping when out)</label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" onclick="saveItem()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<script>
+// ════════ CONSTANTS ════════
+const CLABELS={canned:'Canned',noodle:'Noodles',dry:'Dry Goods',herbs:'Herbs',spices:'Spices',fridge:'Fridge',freezer:'Freezer'};
+const CICONS={canned:'🥫',noodle:'🍜',dry:'🌾',herbs:'🌿',spices:'🫙',fridge:'❄️',freezer:'🧊'};
+const CAT_ORDER=['canned','noodle','dry','herbs','spices','fridge','freezer'];
+const DAYNAMES=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DAYSHORT=['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+// ════════ DATA ════════
+let editIdx=null;
+let pantry=JSON.parse(localStorage.getItem('pantry')||'null')||[
+  {id:1, name:'Chicken thighs',      cat:'freezer',qty:3, low:1,  max:6, ess:false,unit:'portions'},
+  {id:2, name:'Canned tomatoes',     cat:'canned', qty:2, low:0.5,max:4, ess:false,unit:'cans'},
+  {id:3, name:'Dang gui',            cat:'herbs',  qty:1, low:0.5,max:2, ess:false,unit:'packs'},
+  {id:4, name:'Dark soy sauce',      cat:'fridge', qty:1, low:0.5,max:2, ess:true, unit:'bottles'},
+  {id:5, name:'Doubanjiang',         cat:'fridge', qty:0, low:0.5,max:2, ess:true, unit:'jars'},
+  {id:6, name:'Dried shiitake',      cat:'dry',    qty:2, low:0.5,max:3, ess:true, unit:'bags'},
+  {id:7, name:'Dried tangerine peel',cat:'herbs',  qty:1, low:0.5,max:2, ess:false,unit:'bags'},
+  {id:8, name:'Fish fillets',        cat:'freezer',qty:2, low:1,  max:5, ess:false,unit:'portions'},
+  {id:9, name:'Five spice powder',   cat:'spices', qty:1, low:0.5,max:2, ess:true, unit:'jars'},
+  {id:10,name:'Gochujang',           cat:'fridge', qty:1, low:0.5,max:2, ess:false,unit:'jars'},
+  {id:11,name:'Jasmine rice',        cat:'dry',    qty:5, low:1,  max:10,ess:true, unit:'kg'},
+  {id:12,name:'Miso paste',          cat:'fridge', qty:2, low:0.5,max:2, ess:false,unit:'jars'},
+  {id:13,name:'Noodles – egg',       cat:'noodle', qty:3, low:1,  max:6, ess:true, unit:'packs'},
+  {id:14,name:'Noodles – ramen',     cat:'noodle', qty:2, low:1,  max:4, ess:false,unit:'packs'},
+  {id:15,name:'Oyster sauce',        cat:'fridge', qty:1, low:0.5,max:2, ess:true, unit:'bottles'},
+  {id:16,name:'Pork belly',          cat:'freezer',qty:2, low:1,  max:4, ess:false,unit:'portions'},
+  {id:17,name:'Prawns',              cat:'freezer',qty:1, low:1,  max:4, ess:false,unit:'portions'},
+  {id:18,name:'Red dates',           cat:'herbs',  qty:4, low:1,  max:6, ess:true, unit:'bags'},
+  {id:19,name:'Sesame oil',          cat:'fridge', qty:1, low:0.5,max:2, ess:true, unit:'bottles'},
+  {id:20,name:'Shaoxing wine',       cat:'fridge', qty:1, low:0.5,max:2, ess:true, unit:'bottles'},
+  {id:21,name:'Sichuan peppercorn',  cat:'spices', qty:2, low:0.5,max:3, ess:true, unit:'bags'},
+  {id:22,name:'Soy sauce',           cat:'fridge', qty:1, low:0.5,max:2, ess:true, unit:'bottles'},
+  {id:23,name:'Star anise',          cat:'spices', qty:1, low:0.5,max:2, ess:true, unit:'bags'},
+  {id:24,name:'Tofu puffs',          cat:'fridge', qty:0, low:0.5,max:3, ess:false,unit:'packs'},
+  {id:25,name:'Wolfberries',         cat:'herbs',  qty:3, low:0.5,max:4, ess:false,unit:'bags'},
+];
+
+let ideas=JSON.parse(localStorage.getItem('ideas')||'null')||[
+  {id:1,name:'Red-braised pork'},{id:2,name:'Steamed fish'},
+  {id:3,name:'Mapo tofu'},{id:4,name:'Chinese slow soup'},{id:5,name:'Stir-fry veg'},
+];
+
+let plan=JSON.parse(localStorage.getItem('plan3')||'null')||{};
+let shopChecked=JSON.parse(localStorage.getItem('shopChecked')||'{}');
+let dog=(()=>{
+  const saved=JSON.parse(localStorage.getItem('dog')||'null');
+  // If saved data has old structure (ngQty/ngLog), reset to fresh
+  if(saved&&(saved.ngQty!==undefined||saved.vaxLog!==undefined)){
+    return {foodQty:0,foodLog:[],ngPurchases:[],bathLog:saved.bathLog||[],vaccines:[]};
+  }
+  // Clear food log and qty as requested
+  if(saved){saved.foodLog=[];saved.foodQty=0;return saved;}
+  return {foodQty:0,foodLog:[],ngPurchases:[],bathLog:[],vaccines:[]};
+})();
+
+// ════════ FIREBASE SYNC ════════
+const firebaseConfig = {
+  apiKey: "AIzaSyAQdpIFn7csGwWkJy1CTrDiAuyjzvk-N5g",
+  authDomain: "pantry-manger.firebaseapp.com",
+  databaseURL: "https://pantry-manger-default-rtdb.firebaseio.com",
+  projectId: "pantry-manger",
+  storageBucket: "pantry-manger.firebasestorage.app",
+  messagingSenderId: "187676363267",
+  appId: "1:187676363267:web:2e7d5fd8836be771965c36"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const HOUSE = 'shared'; // shared key — both phones read/write the same node
+
+let syncEnabled = false;
+let pendingSave = null;
+
+// Debounced save — writes to Firebase + localStorage
+function save(){
+  // Always write localStorage immediately as backup
+  localStorage.setItem('pantry', JSON.stringify(pantry));
+  localStorage.setItem('ideas', JSON.stringify(ideas));
+  localStorage.setItem('plan3', JSON.stringify(plan));
+  localStorage.setItem('shopChecked', JSON.stringify(shopChecked));
+  localStorage.setItem('dog', JSON.stringify(dog));
+
+  // Write to Firebase (debounced 600ms to avoid hammering on rapid taps)
+  if(pendingSave) clearTimeout(pendingSave);
+  pendingSave = setTimeout(()=>{
+    db.ref(HOUSE).set({
+      pantry, ideas, plan, shopChecked, dog
+    }).catch(e => console.warn('Firebase write failed:', e));
+  }, 600);
+}
+
+// Listen for changes from other devices
+function startSync(){
+  db.ref(HOUSE).on('value', snap => {
+    const data = snap.val();
+    if(!data) return; // nothing in DB yet — use local data
+
+    // Only update if data differs from current (avoid re-render loops)
+    const remoteStr = JSON.stringify(data);
+    const localStr  = JSON.stringify({pantry, ideas, plan, shopChecked, dog});
+    if(remoteStr === localStr) return;
+
+    // Merge remote data in
+    if(data.pantry)      pantry      = data.pantry;
+    if(data.ideas)       ideas       = data.ideas;
+    if(data.plan)        plan        = data.plan;
+    if(data.shopChecked) shopChecked = data.shopChecked;
+    if(data.dog)         dog         = data.dog;
+
+    // Re-render whichever view is active
+    const active = document.querySelector('.view.active');
+    if(!active) return;
+    if(active.id==='view-pantry')  renderPantry();
+    if(active.id==='view-planner') renderPlanner();
+    if(active.id==='view-dog')     renderDog();
+    if(active.id==='view-shopping') renderShopping();
+    updateBadge();
+  });
+  syncEnabled = true;
+}
+
+// Sync status indicator
+function showSyncStatus(msg, color){
+  let el = document.getElementById('sync-status');
+  if(!el) return;
+  el.textContent = msg;
+  el.style.color = color;
+  el.style.opacity = '1';
+  setTimeout(()=>{ el.style.opacity='0'; }, 3000);
+}
+
+// ════════ SIDEBAR ════════
+let sidebarOpen=window.innerWidth>=700;
+function toggleSidebar(){
+  sidebarOpen=!sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('collapsed',!sidebarOpen);
+  document.getElementById('main-area').classList.toggle('full',!sidebarOpen);
+  document.getElementById('sidebar-overlay').classList.toggle('show',sidebarOpen&&window.innerWidth<700);
+}
+// init
+if(!sidebarOpen){
+  document.getElementById('sidebar').classList.add('collapsed');
+  document.getElementById('main-area').classList.add('full');
+}
+
+// ════════ NAV ════════
+const VIEW_TITLES={pantry:'Pantry',planner:'Meal Planner',dog:'🐾 Lachi'};
+function showView(v,el){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbar-title').textContent=VIEW_TITLES[v]||v;
+  closeAllSwipe();
+  if(window.innerWidth<700)toggleSidebar();
+  if(v==='pantry')  renderPantry();
+  if(v==='planner') renderPlanner();
+  if(v==='dog')     renderDog();
+}
+
+// ════════ SWIPE ROWS: LEFT only → edit/out/cart/del ════════
+let openSwipe=null;
+function closeAllSwipe(){
+  document.querySelectorAll('.prow-wrap.open-r').forEach(w=>{
+    w.classList.remove('open-r');
+    w.querySelector('.prow-slider').style.transform='';
+  });
+  openSwipe=null;
+}
+
+function attachRowSwipe(wrap){
+  const slider=wrap.querySelector('.prow-slider');
+  const rPanel=wrap.querySelector('.prow-right-panel');
+  const rW=()=>rPanel.offsetWidth;
+  let sx=0,sy=0,dragging=false;
+
+  function snap(){slider.style.transition='transform .22s cubic-bezier(.25,.46,.45,.94)'}
+  function onStart(x,y){sx=x;sy=y;dragging=false;slider.style.transition='none'}
+  function onMove(x,y){
+    const dx=sx-x,dy=sy-y;
+    if(!dragging){
+      if(Math.abs(dx)<6&&Math.abs(dy)<6)return;
+      if(Math.abs(dy)>Math.abs(dx)){slider.style.transition='';return}
+      dragging=true;
+    }
+    const base=wrap.classList.contains('open-r')?rW():0;
+    slider.style.transform=`translateX(-${Math.max(0,Math.min(rW(),base+dx))}px)`;
+  }
+  function onEnd(x){
+    if(!dragging){slider.style.transition='';return}
+    snap();
+    const dx=sx-x;
+    if(dx>40){closeAllSwipe();wrap.classList.add('open-r');slider.style.transform=`translateX(-${rW()}px)`;openSwipe=wrap}
+    else{slider.style.transform='';wrap.classList.remove('open-r')}
+  }
+  wrap.addEventListener('touchstart',e=>{if(e.touches.length>1)return;onStart(e.touches[0].clientX,e.touches[0].clientY)},{passive:true});
+  wrap.addEventListener('touchmove',e=>{if(dragging)e.preventDefault();onMove(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
+  wrap.addEventListener('touchend',e=>onEnd(e.changedTouches[0].clientX));
+}
+document.addEventListener('touchstart',e=>{if(openSwipe&&!openSwipe.contains(e.target))closeAllSwipe()},{passive:true});
+document.addEventListener('click',e=>{if(openSwipe&&!openSwipe.contains(e.target))closeAllSwipe()});
+// ════════ PANTRY ════════
+let currentCat='all';
+function filterCat(cat,el){
+  currentCat=cat;closeAllSwipe();
+  document.querySelectorAll('.cat-pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');renderPantry();
+}
+
+function isOut(item){return item.qty<=0}
+
+function renderPantry(){
+  let items=currentCat==='all'?pantry:pantry.filter(i=>i.cat===currentCat);
+  // Out-of-stock float to top, then A–Z within each group
+  items=[...items].sort((a,b)=>{
+    const ao=isOut(a),bo=isOut(b);
+    if(ao&&!bo)return -1;if(!ao&&bo)return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  // Auto-add essential out-of-stock to shop list
+  pantry.forEach(item=>{
+    if(item.ess&&isOut(item)&&shopChecked['s'+item.id]===undefined)
+      shopChecked['s'+item.id]=false;
+  });
+
+  const outItems=pantry.filter(i=>isOut(i));
+  document.getElementById('alert-area').innerHTML=outItems.length
+    ?`<div class="alert-bar"><div class="alert-title">⚠️ ${outItems.length} item${outItems.length>1?'s':''} out of stock</div><div class="alert-items">${outItems.map(i=>`${i.name}${i.ess?' ★':''}`).join(' · ')}</div></div>`:'';
+  document.getElementById('pantry-meta').textContent=items.length+' items';
+  updateBadge();
+
+  document.getElementById('pantry-list').innerHTML=items.map(item=>{
+    const idx=pantry.indexOf(item);
+    const out=isOut(item);
+    const inCart=shopChecked['s'+item.id]!==undefined;
+    return `<div class="prow-wrap${out?' out':''}" data-idx="${idx}">
+      <div class="prow-slider">
+        <div class="prow">
+          <div class="prow-dot ${out?'out':'in'}"></div>
+          <span class="prow-name">${item.name}${item.ess?' <span class="ptag-e">★</span>':''}</span>
+          ${out?'<span class="ptag-out">Out</span>':''}
+          <span class="prow-cat">${CICONS[item.cat]}</span>
+        </div>
+        <div class="prow-right-panel">
+          <button class="prp-btn prp-edit" onclick="openEditModal(${idx})"><span class="pi">✏️</span>Edit</button>
+          <button class="prp-btn prp-stock" onclick="toggleStockStatus(${idx})">${out?'<span class="pi">✅</span>In stock':'<span class="pi">❌</span>Out'}</button>
+          <button class="prp-btn prp-cart${inCart?' prp-cart-on':''}" onclick="toggleCart(${idx})"><span class="pi">🛒</span>${inCart?'Listed':'Cart'}</button>
+          <button class="prp-btn prp-del" onclick="deleteItem(${idx})"><span class="pi">🗑</span>Del</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.prow-wrap').forEach(w=>attachRowSwipe(w));
+}
+
+function toggleStockStatus(idx){
+  pantry[idx].qty = isOut(pantry[idx]) ? 1 : 0;
+  if(!isOut(pantry[idx])){
+    const key='s'+pantry[idx].id;
+    if(shopChecked[key]===false&&pantry[idx].ess) delete shopChecked[key];
+  }
+  save(); closeAllSwipe(); renderPantry();
+}
+
+function toggleCart(idx){
+  const item=pantry[idx];
+  const key='s'+item.id;
+  if(shopChecked[key]!==undefined) delete shopChecked[key];
+  else shopChecked[key]=false;
+  save();closeAllSwipe();renderPantry();
+}
+
+function deleteItem(idx){
+  // No confirm() — iOS blocks it in local files. Delete is already behind a swipe gesture.
+  pantry.splice(idx,1);
+  save();closeAllSwipe();renderPantry();
+}
+function updateBadge(){
+  // badge = number of items in shopping list (out-of-stock essentials + manually added)
+  const n=Object.keys(shopChecked).filter(k=>shopChecked[k]===false).length;
+  const b=document.getElementById('shop-badge');b.textContent=n;b.style.display=n?'inline':'none';
+}
+
+// ════════ MODAL ════════
+function openAddModal(){
+  editIdx=null;
+  document.getElementById('modal-title').textContent='Add Item';
+  document.getElementById('f-name').value='';
+  document.getElementById('f-cat').value='fridge';
+  document.getElementById('f-qty').value='1';
+  document.getElementById('f-ess').checked=false;
+  document.getElementById('modal').classList.add('open');
+  setTimeout(()=>document.getElementById('f-name').focus(),200);
+}
+function openEditModal(idx){
+  closeAllSwipe();editIdx=idx;
+  const it=pantry[idx];
+  document.getElementById('modal-title').textContent='Edit Item';
+  document.getElementById('f-name').value=it.name;
+  document.getElementById('f-cat').value=it.cat||'fridge';
+  document.getElementById('f-qty').value=it.qty>0?'1':'0';
+  document.getElementById('f-ess').checked=it.ess;
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+function saveItem(){
+  const name=document.getElementById('f-name').value.trim();
+  if(!name){document.getElementById('f-name').focus();return}
+  const item={
+    id:editIdx!==null?pantry[editIdx].id:Date.now(),name,
+    cat:document.getElementById('f-cat').value,
+    qty:document.getElementById('f-ess').checked||true ? (document.getElementById('f-qty').value==='0'?0:1) : 1,
+    low:0,max:1,
+    ess:document.getElementById('f-ess').checked,
+    unit:'unit',
+  };
+  // Keep qty from form for in/out
+  item.qty = parseInt(document.getElementById('f-qty').value)||0;
+  if(editIdx!==null)pantry[editIdx]=item;else pantry.push(item);
+  save();closeModal();renderPantry();
+}
+
+// ════════ PLANNER ════════
+let calWeekOffset=0;
+
+function todayStr(){return new Date().toISOString().split('T')[0]}
+function fmtDate(d){const dd=new Date(d);return dd.toISOString().split('T')[0]}
+function addDays(ds,n){const d=new Date(ds+'T00:00:00');d.setDate(d.getDate()+n);return fmtDate(d)}
+function getMonday(offset){
+  const now=new Date();const day=now.getDay();
+  const diff=day===0?-6:1-day;
+  const mon=new Date(now);mon.setDate(now.getDate()+diff+offset*7);
+  return fmtDate(mon);
+}
+
+function shiftWeek(d){calWeekOffset+=d;renderPlanner()}
+
+function renderPlanner(){
+  renderCalStrip();
+  renderPlannerGrid();
+  renderIdeaPool();
+}
+
+function renderCalStrip(){
+  const mon=getMonday(calWeekOffset);
+  const mon2=getMonday(calWeekOffset+1);
+  const today=todayStr();
+  const strip=document.getElementById('cal-strip');
+  let html='';
+  // Week 1
+  for(let i=0;i<7;i++){
+    const ds=addDays(mon,i);
+    const d=new Date(ds+'T00:00:00');
+    const hasMeal=(plan[ds]||[]).length>0;
+    const isToday=ds===today;
+    const dots=(plan[ds]||[]).slice(0,3).map(()=>'<div class="cal-dot"></div>').join('');
+    html+=`<div class="cal-cell${isToday?' today':''}${hasMeal&&!isToday?' has-meal':''}" onclick="scrollToDay('${ds}')">
+      <span class="cal-dn">${DAYSHORT[d.getDay()]}</span>
+      <span class="cal-dd">${d.getDate()}</span>
+      <div class="cal-dots">${dots}</div>
+    </div>`;
+  }
+  html+=`<div class="cal-week-sep"></div>`;
+  // Week 2
+  for(let i=0;i<7;i++){
+    const ds=addDays(mon2,i);
+    const d=new Date(ds+'T00:00:00');
+    const hasMeal=(plan[ds]||[]).length>0;
+    const isToday=ds===today;
+    const dots=(plan[ds]||[]).slice(0,3).map(()=>'<div class="cal-dot"></div>').join('');
+    html+=`<div class="cal-cell${isToday?' today':''}${hasMeal&&!isToday?' has-meal':''}" onclick="scrollToDay('${ds}')">
+      <span class="cal-dn">${DAYSHORT[d.getDay()]}</span>
+      <span class="cal-dd">${d.getDate()}</span>
+      <div class="cal-dots">${dots}</div>
+    </div>`;
+  }
+  strip.innerHTML=html;
+
+  // range label
+  const end=addDays(mon2,6);
+  const d1=new Date(mon+'T00:00:00'),d2=new Date(end+'T00:00:00');
+  document.getElementById('cal-range').textContent=
+    d1.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' – '+
+    d2.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+}
+
+function scrollToDay(ds){
+  // find the day col and scroll to it
+  const col=document.querySelector(`.day-col[data-date="${ds}"]`);
+  if(col)col.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function renderPlannerGrid(){
+  const mon=getMonday(calWeekOffset);
+  const today=todayStr();
+  const grid=document.getElementById('planner-grid');
+
+  grid.innerHTML=Array.from({length:7},(_,i)=>{
+    const ds=addDays(mon,i);
+    const d=new Date(ds+'T00:00:00');
+    const meals=plan[ds]||[];
+    const isToday=ds===today;
+    return `<div class="day-col${isToday?' today':''}" data-date="${ds}">
+      <div class="day-head">
+        <div class="day-dn">${DAYSHORT[d.getDay()]}</div>
+        <div class="day-dd">${d.getDate()}</div>
+      </div>
+      <div class="day-meals" id="dm-${ds}">
+        ${meals.map((m,mi)=>`<div class="meal-chip" data-date="${ds}" data-mi="${mi}">
+          <span class="meal-chip-name">${m}</span>
+          <button class="meal-chip-del" onclick="rmMeal('${ds}',${mi});event.stopPropagation()">×</button>
+        </div>`).join('')}
+        <div class="day-drop-hint">Drop here</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // attach drag to meal chips
+  grid.querySelectorAll('.meal-chip').forEach(chip=>{
+    const ds=chip.dataset.date,mi=parseInt(chip.dataset.mi);
+    attachDrag(chip,{type:'meal',ds,mi,label:plan[ds][mi]||''});
+  });
+  // drop zones on day columns
+  grid.querySelectorAll('.day-col').forEach(col=>{
+    col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('drag-over')});
+    col.addEventListener('dragleave',()=>col.classList.remove('drag-over'));
+    col.addEventListener('drop',e=>{e.preventDefault();col.classList.remove('drag-over');doDrop(col.dataset.date)});
+  });
+}
+
+function rmMeal(ds,mi){plan[ds].splice(mi,1);save();renderPlannerGrid();renderCalStrip()}
+
+function renderIdeaPool(){
+  const pool=document.getElementById('idea-pool-cards');
+  pool.innerHTML=ideas.map(idea=>`<div class="idea-card" id="ic-${idea.id}">
+    ${idea.name}
+    <button onclick="rmIdea(${idea.id});event.stopPropagation()">×</button>
+  </div>`).join('');
+  pool.querySelectorAll('.idea-card').forEach(card=>{
+    const id=parseInt(card.id.replace('ic-',''));
+    const idea=ideas.find(i=>i.id===id);
+    attachDrag(card,{type:'idea',id,label:idea?.name||''});
+  });
+}
+
+function rmIdea(id){ideas=ideas.filter(i=>i.id!==id);save();renderIdeaPool()}
+function addIdea(){
+  const inp=document.getElementById('idea-input');
+  const name=inp.value.trim();if(!name)return;
+  ideas.push({id:Date.now(),name});inp.value='';save();renderIdeaPool();
+}
+
+// ════════ TOUCH+MOUSE DRAG ════════
+let drag=null,ghost=null;
+
+function mkGhost(label){rmGhost();ghost=document.createElement('div');ghost.className='drag-ghost';ghost.textContent=label.length>26?label.slice(0,24)+'…':label;document.body.appendChild(ghost)}
+function mvGhost(x,y){if(!ghost)return;ghost.style.left=(x-ghost.offsetWidth/2)+'px';ghost.style.top=(y-28)+'px'}
+function rmGhost(){if(ghost){ghost.remove();ghost=null}}
+
+function dayColFromPoint(x,y){
+  if(ghost)ghost.style.visibility='hidden';
+  const el=document.elementFromPoint(x,y);
+  if(ghost)ghost.style.visibility='';
+  return el?.closest('.day-col')||null;
+}
+function hlDayCol(col){document.querySelectorAll('.day-col').forEach(c=>c.classList.remove('drag-over'));if(col)col.classList.add('drag-over')}
+function clrHl(){document.querySelectorAll('.day-col').forEach(c=>c.classList.remove('drag-over'))}
+
+function doDrop(ds){
+  if(!drag||!ds)return;
+  if(!plan[ds])plan[ds]=[];
+  if(drag.type==='idea'){
+    const idea=ideas.find(i=>i.id===drag.id);if(!idea)return;
+    plan[ds].push(idea.name);
+    ideas=ideas.filter(i=>i.id!==drag.id);
+    save();renderPlannerGrid();renderCalStrip();renderIdeaPool();
+  } else if(drag.type==='meal'){
+    if(drag.ds===ds)return;
+    const meal=plan[drag.ds].splice(drag.mi,1)[0];
+    plan[ds].push(meal);
+    save();renderPlannerGrid();renderCalStrip();
+  }
+}
+
+function attachDrag(el,data){
+  let sx=0,sy=0,active=false,moved=false;
+  const TH=8;
+  el.addEventListener('touchstart',e=>{if(e.touches.length>1)return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;active=false;moved=false},{passive:true});
+  el.addEventListener('touchmove',e=>{
+    const cx=e.touches[0].clientX,cy=e.touches[0].clientY,dx=cx-sx,dy=cy-sy;
+    if(!moved){if(Math.abs(dx)<TH&&Math.abs(dy)<TH)return;moved=true;if(Math.abs(dy)>Math.abs(dx)*1.4&&Math.abs(dy)>16)return;active=true;drag=data;mkGhost(data.label);el.classList.add('dragging')}
+    if(!active)return;e.preventDefault();mvGhost(cx,cy);hlDayCol(dayColFromPoint(cx,cy));
+  },{passive:false});
+  el.addEventListener('touchend',e=>{
+    if(active){const t=e.changedTouches[0];const col=dayColFromPoint(t.clientX,t.clientY);if(col)doDrop(col.dataset.date)}
+    el.classList.remove('dragging');rmGhost();clrHl();drag=null;active=false;
+  });
+  el.setAttribute('draggable','true');
+  el.addEventListener('dragstart',e=>{drag=data;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',data.label);setTimeout(()=>el.classList.add('dragging'),0)});
+  el.addEventListener('dragend',()=>{el.classList.remove('dragging');clrHl();drag=null});
+}
+
+// ════════ SHOPPING ════════
+function openShop(){renderShopping();document.getElementById('shop-modal').classList.add('open')}
+function closeShop(){document.getElementById('shop-modal').classList.remove('open')}
+function renderShopping(){
+  // Build list from shopChecked keys (manually added or auto-added essentials)
+  const listIds=Object.keys(shopChecked).map(k=>parseInt(k.replace('s','')));
+  const listItems=listIds.map(id=>pantry.find(i=>i.id===id)).filter(Boolean)
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  const byCat={};
+  listItems.forEach(i=>{if(!byCat[i.cat])byCat[i.cat]=[];byCat[i.cat].push(i)});
+  const cats=Object.keys(byCat).sort((a,b)=>CAT_ORDER.indexOf(a)-CAT_ORDER.indexOf(b));
+  if(!cats.length){document.getElementById('shop-grid').innerHTML=`<div style="text-align:center;padding:40px;color:var(--muted)"><div style="font-size:32px;margin-bottom:8px">✓</div>Nothing on the list!</div>`;return}
+  document.getElementById('shop-grid').innerHTML=cats.map(cat=>`<div class="shop-sec">
+    <h3>${CICONS[cat]} ${CLABELS[cat]}</h3>
+    ${byCat[cat].map(item=>{
+      const ck=shopChecked['s'+item.id];
+      return `<div class="shop-item${ck?' chk':''}" id="sr-${item.id}">
+        <input type="checkbox" class="shop-chk"${ck?' checked':''} onchange="tglShop(${item.id},this.checked)">
+        <span>${item.name}${item.ess?`<span class="shop-ess">★ Essential</span>`:''}</span>
+        <button onclick="removeFromList(${item.id})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;margin-left:auto;padding:0 2px;touch-action:manipulation">×</button>
+      </div>`;
+    }).join('')}
+  </div>`).join('');
+}
+function removeFromList(id){delete shopChecked['s'+id];save();renderShopping();updateBadge();renderPantry()}
+function tglShop(id,v){shopChecked['s'+id]=v;save();document.getElementById('sr-'+id)?.classList.toggle('chk',v)}
+function clearChecked(){
+  // Only remove checked items, keep unchecked
+  Object.keys(shopChecked).forEach(k=>{if(shopChecked[k]===true)delete shopChecked[k]});
+  save();renderShopping();updateBadge();
+}
+function copyList(){
+  const listIds=Object.keys(shopChecked).map(k=>parseInt(k.replace('s','')));
+  const items=listIds.map(id=>pantry.find(i=>i.id===id)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));
+  const text='🛒 Shopping List\n\n'+items.map(i=>`${shopChecked['s'+i.id]?'✓':'◻'} ${i.name}${i.ess?' ★':''}`).join('\n');
+  navigator.clipboard.writeText(text).then(()=>alert('Copied!'));
+}
+
+// ════════ DOG ════════
+function fmtD(ds){if(!ds)return '—';const d=new Date(ds+'T00:00:00');return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
+function daysAgo(ds){if(!ds)return '';const diff=Math.round((new Date()-new Date(ds+'T00:00:00'))/(864e5));return diff===0?' (today)':diff===1?' (yesterday)':(` (${diff}d ago)`)}
+
+function countdownPill(daysLeft,totalDays){
+  const pct=Math.max(0,Math.min(100,100-(daysLeft/totalDays*100)));
+  let cls='ok',label='';
+  if(daysLeft<=3){cls='urgent';label=`🔴 ${daysLeft}d left — buy soon!`}
+  else if(daysLeft<=7){cls='warn';label=`🟡 ${daysLeft} days left`}
+  else{label=`🟢 ${daysLeft} days of supply left`}
+  return {html:`<div class="countdown-pill ${cls}">${label}</div>`,pct};
+}
+
+// ── Food ──
+let foodEditIdx=null;
+function buyFood(n){
+  dog.foodQty+=n;
+  dog.foodLog.unshift({date:todayStr(),qty:n});
+  save();renderDog();
+}
+function openFoodModal(idx){
+  foodEditIdx=idx;
+  const r=dog.foodLog[idx];
+  document.getElementById('food-modal-title').textContent='Edit Purchase';
+  document.getElementById('ff-date').value=r.date;
+  document.getElementById('ff-qty').value=String(r.qty);
+  document.getElementById('food-modal').classList.add('open');
+}
+function closeFoodModal(){document.getElementById('food-modal').classList.remove('open')}
+function saveFoodRecord(){
+  if(foodEditIdx===null)return;
+  const oldQty=dog.foodLog[foodEditIdx].qty;
+  const newQty=parseInt(document.getElementById('ff-qty').value);
+  const newDate=document.getElementById('ff-date').value;
+  dog.foodQty=Math.max(0,dog.foodQty-oldQty+newQty);
+  dog.foodLog[foodEditIdx]={date:newDate,qty:newQty};
+  save();closeFoodModal();renderDog();
+}
+function delFoodLog(i){
+  dog.foodQty=Math.max(0,dog.foodQty-dog.foodLog[i].qty);
+  dog.foodLog.splice(i,1);
+  save();renderDog();
+}
+function clearAllFoodRecords(){
+  dog.foodLog=[];dog.foodQty=0;save();renderDog();
+}
+
+// ── NexGard: purchase records only ──
+// Each record: { date: 'YYYY-MM-DD', doses: 6|12, months: 6|12 }
+// Coverage = purchase date + months
+function buyNG(doses){
+  if(!dog.ngPurchases)dog.ngPurchases=[];
+  dog.ngPurchases.unshift({date:todayStr(),doses,months:doses}); // 6 doses=6mo, 12=12mo
+  save();renderDog();
+}
+function delNGRecord(i){dog.ngPurchases.splice(i,1);save();renderDog()}
+
+// ── Bath ──
+function recordBath(){dog.bathLog.unshift(todayStr());save();renderDog()}
+function delBathLog(i){dog.bathLog.splice(i,1);save();renderDog()}
+
+// ── Vax modal ──
+let vaxEditIdx=null;
+function openVaxModal(idx){
+  vaxEditIdx=idx!==undefined?idx:null;
+  document.getElementById('vax-modal-title').textContent=vaxEditIdx!==null?'Edit Vaccine':'Add Vaccine Record';
+  if(vaxEditIdx!==null){
+    const v=dog.vaccines[vaxEditIdx];
+    document.getElementById('vf-name').value=v.name;
+    document.getElementById('vf-date').value=v.date;
+    document.getElementById('vf-next').value=v.next||'';
+    document.getElementById('vf-notes').value=v.notes||'';
+  } else {
+    document.getElementById('vf-name').value='';
+    document.getElementById('vf-date').value=todayStr();
+    document.getElementById('vf-next').value='';
+    document.getElementById('vf-notes').value='';
+  }
+  document.getElementById('vax-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('vf-name').focus(),200);
+}
+function closeVaxModal(){document.getElementById('vax-modal').classList.remove('open')}
+function saveVaxRecord(){
+  const name=document.getElementById('vf-name').value.trim();
+  if(!name){document.getElementById('vf-name').focus();return}
+  const rec={name,date:document.getElementById('vf-date').value,next:document.getElementById('vf-next').value,notes:document.getElementById('vf-notes').value.trim()};
+  if(!dog.vaccines)dog.vaccines=[];
+  if(vaxEditIdx!==null)dog.vaccines[vaxEditIdx]=rec;
+  else dog.vaccines.unshift(rec);
+  save();closeVaxModal();renderDog();
+}
+function deleteVax(idx){if(!confirm('Delete this vaccine record?'))return;dog.vaccines.splice(idx,1);save();renderDog()}
+
+function renderDog(){
+  // ── Migrate old data structure if needed ──
+  if(!dog.ngPurchases) dog.ngPurchases=[];
+  if(!dog.vaccines) dog.vaccines=[];
+  if(!dog.bathLog) dog.bathLog=[];
+  if(!dog.foodLog) dog.foodLog=[];
+  // migrate old string-based foodLog entries
+  dog.foodLog=dog.foodLog.map(r=>typeof r==='string'?{date:todayStr(),qty:24}:r);
+
+  // ── Food (1 portion/day) ──
+  const foodQtyEl=document.getElementById('food-qty');
+  const foodAlertEl=document.getElementById('food-alert');
+  const foodCdEl=document.getElementById('food-countdown');
+  const foodProgEl=document.getElementById('food-prog');
+  const foodLogEl=document.getElementById('food-log');
+  if(foodQtyEl) foodQtyEl.textContent=dog.foodQty+' portions';
+  if(foodAlertEl) foodAlertEl.style.display=dog.foodQty<=3?'block':'none';
+  const foodDaysLeft=Math.max(0,dog.foodQty);
+  const {html:foodHtml,pct:foodPct}=countdownPill(foodDaysLeft,24);
+  if(foodCdEl) foodCdEl.innerHTML=foodHtml;
+  if(foodProgEl){
+    foodProgEl.style.width=foodPct+'%';
+    foodProgEl.style.background=foodDaysLeft<=3?'var(--red)':foodDaysLeft<=7?'var(--amber)':'var(--green)';
+  }
+  if(foodLogEl) foodLogEl.innerHTML=dog.foodLog.length
+    ?dog.foodLog.map((r,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:11px">🛒 ${fmtD(r.date)} <strong>+${r.qty}</strong></span>
+        <button onclick="openFoodModal(${i})" style="background:var(--blue-light);border:1px solid #b0c8e8;border-radius:6px;color:var(--blue);cursor:pointer;font-size:11px;padding:2px 8px;touch-action:manipulation">Edit</button>
+        <button onclick="delFoodLog(${i})" style="background:var(--red-light);border:1px solid #f0c8c3;border-radius:6px;color:var(--red);cursor:pointer;font-size:11px;padding:2px 7px;touch-action:manipulation">Del</button>
+      </div>`).join('')
+    :'<span style="font-size:11px;color:var(--muted)">No records yet</span>';
+
+  // ── NexGard ──
+  const today=todayStr();
+  let coverageEnd=null,latestPurchase=null;
+  dog.ngPurchases.forEach(p=>{
+    const end=new Date(p.date+'T00:00:00');
+    end.setMonth(end.getMonth()+p.months);
+    const endStr=end.toISOString().split('T')[0];
+    if(!coverageEnd||endStr>coverageEnd){coverageEnd=endStr;latestPurchase=p;}
+  });
+  const hasActiveCoverage=coverageEnd&&coverageEnd>=today;
+
+  const ngAlertEl=document.getElementById('ng-alert');
+  const ngStatusEl=document.getElementById('ng-status');
+  const ngCdEl=document.getElementById('ng-countdown');
+  const ngProgEl=document.getElementById('ng-prog');
+  const ngNextEl=document.getElementById('ng-next-date');
+  const ngListEl=document.getElementById('ng-log-list');
+
+  if(ngAlertEl) ngAlertEl.style.display=!hasActiveCoverage?'block':'none';
+  if(hasActiveCoverage){
+    const daysLeft=Math.max(0,Math.round((new Date(coverageEnd+'T00:00:00')-new Date())/864e5));
+    const totalDays=latestPurchase.months*30;
+    const {html,pct}=countdownPill(daysLeft,totalDays);
+    if(ngCdEl) ngCdEl.innerHTML=html;
+    if(ngStatusEl) ngStatusEl.textContent=`Covered until ${fmtD(coverageEnd)}`;
+    if(ngNextEl) ngNextEl.textContent=`${daysLeft} days remaining`;
+    if(ngProgEl){ngProgEl.style.width=pct+'%';ngProgEl.style.background=daysLeft<=30?'var(--red)':daysLeft<=60?'var(--amber)':'var(--purple)';}
+  } else {
+    if(ngCdEl) ngCdEl.innerHTML='<div style="font-size:11px;color:var(--muted)">No active coverage — log a purchase to start tracking</div>';
+    if(ngStatusEl) ngStatusEl.textContent='No active coverage';
+    if(ngNextEl) ngNextEl.textContent='';
+    if(ngProgEl) ngProgEl.style.width='0%';
+  }
+  if(ngListEl) ngListEl.innerHTML=dog.ngPurchases.length
+    ?dog.ngPurchases.map((p,i)=>{
+        const end=new Date(p.date+'T00:00:00');end.setMonth(end.getMonth()+p.months);
+        const endStr=end.toISOString().split('T')[0];
+        const active=endStr>=today;
+        return `<div class="drow" style="align-items:center">
+          <div class="dlabel" style="font-size:12px">
+            <span style="font-weight:600">${p.doses} doses (${p.months} months)</span>
+            <span class="dsub">${fmtD(p.date)} → until ${fmtD(endStr)} ${active?'<span style="color:var(--green)">●</span>':'<span style="color:var(--muted)">ended</span>'}</span>
+          </div>
+          <button onclick="delNGRecord(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;padding:4px;touch-action:manipulation;flex-shrink:0">×</button>
+        </div>`;
+      }).join('')
+    :'<div style="padding:8px 0;font-size:12px;color:var(--muted)">No purchases logged yet.</div>';
+
+  // ── Bath ──
+  const lb=dog.bathLog[0]||null;
+  const bathLastEl=document.getElementById('bath-last');
+  const bathAgoEl=document.getElementById('bath-ago');
+  const bathLogEl=document.getElementById('bath-log');
+  if(bathLastEl) bathLastEl.textContent=fmtD(lb);
+  if(bathAgoEl) bathAgoEl.textContent=daysAgo(lb);
+  if(bathLogEl) bathLogEl.innerHTML=dog.bathLog.length
+    ?dog.bathLog.slice(0,10).map((d,i)=>`<div style="display:flex;align-items:center;gap:6px;padding:2px 0">
+        <span style="flex:1">🛁 ${fmtD(d)}</span>
+        <button onclick="delBathLog(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0;touch-action:manipulation">×</button>
+      </div>`).join('')
+    :'<span>No records yet</span>';
+
+  // ── Vaccination ──
+  const vlist=document.getElementById('vax-list');
+  if(!vlist) return;
+  if(!dog.vaccines.length){vlist.innerHTML='<div style="padding:10px 0;color:var(--muted);font-size:12px">No vaccines recorded yet.</div>';return}
+  vlist.innerHTML=dog.vaccines.map((v,i)=>{
+    const overdue=v.next&&v.next<today;
+    return `<div class="drow" style="align-items:flex-start;gap:8px">
+      <div class="dlabel">
+        <span style="font-size:13px;font-weight:600">${v.name}</span>
+        <span class="dsub">Given: ${fmtD(v.date)}${v.notes?` · ${v.notes}`:''}</span>
+        ${v.next?`<span class="dsub" style="${overdue?'color:var(--red);font-weight:600':'color:var(--muted)'}">Next: ${fmtD(v.next)}${overdue?' ⚠️':''}</span>`:''}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button class="ddate" onclick="openVaxModal(${i})">Edit</button>
+        <button class="dbuy" style="background:var(--red-light);border-color:#f0c8c3;color:var(--red)" onclick="deleteVax(${i})">Del</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════ INIT ════════
+renderPantry();
+
+// Start Firebase sync — seed DB with local data if it's empty
+db.ref(HOUSE).once('value').then(snap => {
+  if(!snap.val()){
+    // First time — push current local data up to Firebase
+    db.ref(HOUSE).set({pantry, ideas, plan, shopChecked, dog})
+      .then(()=>{ showSyncStatus('☁️ Synced', '#2d6a4f'); startSync(); })
+      .catch(()=>{ startSync(); });
+  } else {
+    startSync();
+  }
+}).catch(e => {
+  console.warn('Firebase connection failed, running offline:', e);
+});
+</script>
+</body>
+</html>
