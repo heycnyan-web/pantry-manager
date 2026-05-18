@@ -263,6 +263,12 @@ body{font-family:var(--fb);background:var(--paper);color:var(--ink);min-height:1
     <button class="nav-item" onclick="showView('planner',this)"><span class="ni">📅</span><span class="nl">Meal Planner</span></button>
     <button class="nav-item" onclick="showView('dog',this)"><span class="ni">🐾</span><span class="nl">Lachi</span></button>
   </div>
+  <div style="padding:12px 14px;border-top:1px solid rgba(255,255,255,.08)">
+    <button onclick="forceSyncFromCloud()" style="width:100%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 12px;color:rgba(255,255,255,.7);font-family:var(--fb);font-size:12px;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;touch-action:manipulation">
+      <span>☁️</span><span>Sync from cloud</span>
+    </button>
+    <div id="sync-msg" style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px;text-align:center"></div>
+  </div>
 </div>
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
@@ -701,7 +707,41 @@ function startSync(){
   syncEnabled = true;
 }
 
-// Sync status indicator
+function forceSyncFromCloud(){
+  const msg=document.getElementById('sync-msg');
+  if(!db){msg.textContent='No cloud connection';return}
+  msg.textContent='Syncing…';
+  db.ref(HOUSE).once('value').then(snap=>{
+    const data=snap.val();
+    if(!data){msg.textContent='Cloud is empty';return}
+    if(data.pantry)      pantry=data.pantry;
+    if(data.ideas)       ideas=data.ideas;
+    if(data.dishes)      dishes=data.dishes;
+    if(data.plan)        plan=data.plan;
+    if(data.shopChecked) shopChecked=data.shopChecked;
+    if(data.dog)         dog=data.dog;
+    if(data.household)   household=data.household;
+    // Save to localStorage too
+    localStorage.setItem('pantry',JSON.stringify(pantry));
+    localStorage.setItem('ideas',JSON.stringify(ideas));
+    localStorage.setItem('dishes',JSON.stringify(dishes));
+    localStorage.setItem('plan3',JSON.stringify(plan));
+    localStorage.setItem('shopChecked',JSON.stringify(shopChecked));
+    localStorage.setItem('dog',JSON.stringify(dog));
+    localStorage.setItem('household',JSON.stringify(household));
+    // Re-render active view
+    const active=document.querySelector('.view.active');
+    if(active){
+      if(active.id==='view-pantry') renderPantry();
+      if(active.id==='view-household') renderHousehold();
+      if(active.id==='view-planner') renderPlanner();
+      if(active.id==='view-dog') renderDog();
+    }
+    updateBadge();
+    msg.textContent='✓ Synced!';
+    setTimeout(()=>msg.textContent='',3000);
+  }).catch(()=>{ msg.textContent='Sync failed'; });
+}
 function showSyncStatus(msg, color){
   let el = document.getElementById('sync-status');
   if(!el) return;
@@ -1524,26 +1564,21 @@ if(db){
   db.ref(HOUSE).once('value').then(snap => {
     const cloudData=snap.val();
     if(!cloudData || (!cloudData.pantry && !cloudData.household)){
+      // Cloud empty — push local up
       db.ref(HOUSE).set({pantry, ideas, dishes, plan, shopChecked, dog, household})
         .then(()=>{ showSyncStatus('☁️ Synced', '#2d6a4f'); startSync(); })
         .catch(()=>{ startSync(); });
     } else {
-      const localHasRealData = pantry.length > 5;
-      if(localHasRealData){
-        db.ref(HOUSE).set({pantry, ideas, dishes, plan, shopChecked, dog, household})
-          .then(()=>startSync())
-          .catch(()=>startSync());
-      } else {
-        // Use cloud data
-        if(cloudData.pantry)      pantry=cloudData.pantry;
-        if(cloudData.ideas)       ideas=cloudData.ideas;
-        if(cloudData.plan)        plan=cloudData.plan;
-        if(cloudData.shopChecked) shopChecked=cloudData.shopChecked;
-        if(cloudData.dog)         dog=cloudData.dog;
-        if(cloudData.household)   household=cloudData.household;
-        renderPantry();
-        startSync();
-      }
+      // Cloud has data — always use it as source of truth
+      if(cloudData.pantry)      pantry=cloudData.pantry;
+      if(cloudData.ideas)       ideas=cloudData.ideas;
+      if(cloudData.dishes)      dishes=cloudData.dishes;
+      if(cloudData.plan)        plan=cloudData.plan;
+      if(cloudData.shopChecked) shopChecked=cloudData.shopChecked;
+      if(cloudData.dog)         dog=cloudData.dog;
+      if(cloudData.household)   household=cloudData.household;
+      renderPantry();
+      startSync();
     }
   }).catch(e => {
     console.warn('Firebase connection failed, running offline:', e);
