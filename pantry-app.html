@@ -909,7 +909,13 @@ function saveItem(){
 // ════════ PLANNER ════════
 let calWeekOffset=0;
 
-function todayStr(){return new Date().toISOString().split('T')[0]}
+function todayStr(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
 function fmtDate(d){const dd=new Date(d);return dd.toISOString().split('T')[0]}
 function addDays(ds,n){const d=new Date(ds+'T00:00:00');d.setDate(d.getDate()+n);return fmtDate(d)}
 function getMonday(offset){
