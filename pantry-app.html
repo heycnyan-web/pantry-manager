@@ -608,10 +608,7 @@ let pantry=JSON.parse(localStorage.getItem('pantry')||'null')||[
   {id:25,name:'Wolfberries',         cat:'herbs',  qty:3, low:0.5,max:4, ess:false,unit:'bags'},
 ];
 
-let ideas=JSON.parse(localStorage.getItem('ideas')||'null')||[
-  {id:1,name:'Red-braised pork'},{id:2,name:'Steamed fish'},
-  {id:3,name:'Mapo tofu'},{id:4,name:'Chinese slow soup'},{id:5,name:'Stir-fry veg'},
-];
+let ideas=JSON.parse(localStorage.getItem('ideas')||'null')||[];
 let dishes=JSON.parse(localStorage.getItem('dishes')||'null')||[];
 
 let plan=JSON.parse(localStorage.getItem('plan3')||'null')||{};
@@ -1166,18 +1163,63 @@ function doDrop(ds){
 }
 
 function attachDrag(el,data){
-  let sx=0,sy=0,active=false,moved=false;
-  const TH=8;
-  el.addEventListener('touchstart',e=>{if(e.touches.length>1)return;sx=e.touches[0].clientX;sy=e.touches[0].clientY;active=false;moved=false},{passive:true});
+  let sx=0,sy=0,active=false,longPressTimer=null;
+  const HOLD_MS=350; // ms to hold before drag activates
+
+  function cancelLongPress(){
+    if(longPressTimer){clearTimeout(longPressTimer);longPressTimer=null;}
+  }
+  function startLongPress(x,y){
+    cancelLongPress();
+    sx=x;sy=y;active=false;
+    longPressTimer=setTimeout(()=>{
+      // Long press triggered — start drag
+      active=true;
+      drag=data;
+      mkGhost(data.label);
+      el.classList.add('dragging');
+      // Vibrate to confirm drag started (if supported)
+      if(navigator.vibrate) navigator.vibrate(30);
+    },HOLD_MS);
+  }
+
+  el.addEventListener('touchstart',e=>{
+    if(e.touches.length>1)return;
+    startLongPress(e.touches[0].clientX,e.touches[0].clientY);
+  },{passive:true});
+
   el.addEventListener('touchmove',e=>{
-    const cx=e.touches[0].clientX,cy=e.touches[0].clientY,dx=cx-sx,dy=cy-sy;
-    if(!moved){if(Math.abs(dx)<TH&&Math.abs(dy)<TH)return;moved=true;if(Math.abs(dy)>Math.abs(dx)*1.4&&Math.abs(dy)>16)return;active=true;drag=data;mkGhost(data.label);el.classList.add('dragging')}
-    if(!active)return;e.preventDefault();mvGhost(cx,cy);hlDayCol(dayColFromPoint(cx,cy));
+    const cx=e.touches[0].clientX,cy=e.touches[0].clientY;
+    const dx=Math.abs(cx-sx),dy=Math.abs(cy-sy);
+    // If moved too much before long press fires, cancel it (user is scrolling)
+    if(!active){
+      if(dx>8||dy>8) cancelLongPress();
+      return;
+    }
+    // Drag is active — prevent scroll and move ghost
+    e.preventDefault();
+    mvGhost(cx,cy);
+    hlDayCol(dayColFromPoint(cx,cy));
   },{passive:false});
+
   el.addEventListener('touchend',e=>{
-    if(active){const t=e.changedTouches[0];const col=dayColFromPoint(t.clientX,t.clientY);if(col)doDrop(col.dataset.date)}
-    el.classList.remove('dragging');rmGhost();clrHl();drag=null;active=false;
+    cancelLongPress();
+    if(active){
+      const t=e.changedTouches[0];
+      const col=dayColFromPoint(t.clientX,t.clientY);
+      if(col) doDrop(col.dataset.date);
+    }
+    el.classList.remove('dragging');
+    rmGhost();clrHl();drag=null;active=false;
   });
+
+  el.addEventListener('touchcancel',()=>{
+    cancelLongPress();
+    el.classList.remove('dragging');
+    rmGhost();clrHl();drag=null;active=false;
+  });
+
+  // Mouse drag (desktop — no change needed)
   el.setAttribute('draggable','true');
   el.addEventListener('dragstart',e=>{drag=data;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',data.label);setTimeout(()=>el.classList.add('dragging'),0)});
   el.addEventListener('dragend',()=>{el.classList.remove('dragging');clrHl();drag=null});
