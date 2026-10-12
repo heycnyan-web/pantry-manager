@@ -354,7 +354,7 @@ html, body {
       <li class="nav-item"        data-view="intake"    onclick="switchView('intake')">   <span class="nav-icon">📊</span> Weekly Intake</li>
     </ul>
     <div class="sidebar-sync">
-      <button class="sync-btn" onclick="syncFromCloud()">☁️ Sync from cloud</button>
+      <button class="sync-btn" id="sync-btn" onclick="syncFromCloud()">☁️ Connecting…</button>
     </div>
   </nav>
   <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
@@ -569,23 +569,39 @@ function loadLocal() {
   state.recurringHistory = lsLoad('recurringHistory',[]);
   state.currentRecurring = lsLoad('currentRecurring',null);
   state.lambWeekCount    = lsLoad('lambWeekCount',0);
+  rolloverIfNeeded(false);
+}
+// Auto-clear basket every Friday cycle (writeCloud=false until cloud data has loaded)
+function rolloverIfNeeded(writeCloud) {
   const thisWeek = getWeekKey();
   const thisFri  = getFriKey();
-  // Auto-clear basket every Friday cycle
-  const savedWedKey = state.basketWedKey || '';
-  if (savedWedKey !== thisFri) {
+  if ((state.basketWedKey || '') !== thisFri) {
     autoRecordIntake();
     state.basketTicks      = {};
     state.basketWeekKey    = thisWeek;
     state.basketWedKey     = thisFri;
     state.currentRecurring = null;
-    saveAll();
+    saveAll(writeCloud ? BASKET_PATHS : null);
   } else if (state.basketWeekKey !== thisWeek) {
     state.basketWeekKey = thisWeek;
-    saveAll();
+    saveAll(writeCloud ? ['basketWeekKey'] : null);
   }
 }
-function saveAll() {
+// Live sync: each change writes only the part that changed (e.g. one day, one tick),
+// so two phones editing different things never overwrite each other.
+const ROOT = 'kitchenManager';
+const BASKET_PATHS = ['basketTicks','basketWeekKey','basketWedKey','currentRecurring','intake'];
+function saveAll(paths) {
+  saveLocal();
+  if (!db || !paths || !paths.length) return;
+  const updates = {};
+  for (const p of paths) {
+    const val = p.split('/').reduce((o,k) => (o == null ? undefined : o[k]), state);
+    updates[p] = (val === undefined) ? null : val;
+  }
+  try { db.ref(ROOT).update(updates).catch(e => { console.warn(e); showToast('⚠️ Cloud save failed'); }); } catch(e) {}
+}
+function saveLocal() {
   lsSave('basketTicks',      state.basketTicks);
   lsSave('basketWeekKey',    state.basketWeekKey);
   lsSave('basketWedKey',     state.basketWedKey || '');
@@ -594,27 +610,47 @@ function saveAll() {
   lsSave('recurringHistory', state.recurringHistory);
   lsSave('currentRecurring', state.currentRecurring);
   lsSave('lambWeekCount',    state.lambWeekCount);
-  if (db) try { db.ref('kitchenManager').set(state); } catch(e) {}
 }
 function applyCloud(d) {
-  if (!d) return;
-  if (d.basketTicks)      state.basketTicks      = d.basketTicks;
-  if (d.basketWeekKey)    state.basketWeekKey    = d.basketWeekKey;
-  if (d.basketWedKey)     state.basketWedKey     = d.basketWedKey;
-  if (d.planner)          state.planner          = d.planner;
-  if (d.intake)           state.intake           = d.intake;
-  if (d.recurringHistory) state.recurringHistory = d.recurringHistory;
-  if (d.currentRecurring !== undefined) state.currentRecurring = d.currentRecurring;
-  if (d.lambWeekCount    !== undefined) state.lambWeekCount    = d.lambWeekCount;
-  const thisWeek = getWeekKey();
-  if (state.basketWeekKey !== thisWeek) { autoRecordIntake(); state.basketTicks = {}; state.basketWeekKey = thisWeek; state.currentRecurring = null; }
-  lsSave('basketTicks',state.basketTicks); lsSave('basketWeekKey',state.basketWeekKey); lsSave('planner',state.planner);
-  lsSave('intake',state.intake); lsSave('recurringHistory',state.recurringHistory);
-  lsSave('currentRecurring',state.currentRecurring); lsSave('lambWeekCount',state.lambWeekCount);
+  if (!d) {               // empty cloud → seed it from this phone
+    saveAll(['basketTicks','basketWeekKey','basketWedKey','planner','intake','recurringHistory','currentRecurring','lambWeekCount']);
+    return;
+  }
+  state.basketTicks      = d.basketTicks      || {};
+  state.basketWeekKey    = d.basketWeekKey    || '';
+  state.basketWedKey     = d.basketWedKey     || '';
+  state.planner          = d.planner          || {};
+  state.intake           = toArray(d.intake);
+  state.recurringHistory = toArray(d.recurringHistory);
+  state.currentRecurring = d.currentRecurring ?? null;
+  state.lambWeekCount    = d.lambWeekCount    || 0;
+  saveLocal();
+  rolloverIfNeeded(true);
+}
+// Firebase can return arrays as objects — normalise
+function toArray(v) { return Array.isArray(v) ? v.filter(Boolean) : (v ? Object.values(v) : []); }
+
+// Re-render on remote changes, but never while someone is typing or using a dropdown
+let pendingRender = false;
+function isEditing() {
+  const a = document.activeElement;
+  return a && (a.tagName === 'INPUT' || a.tagName === 'SELECT' || a.tagName === 'TEXTAREA') && document.getElementById('content').contains(a);
+}
+function renderSoon() {
+  if (isEditing()) { pendingRender = true; return; }
+  pendingRender = false; render();
+}
+document.addEventListener('focusout', () => {
+  setTimeout(() => { if (pendingRender && !isEditing()) { pendingRender = false; render(); } }, 250);
+});
+
+function setSyncStatus(online) {
+  const b = document.getElementById('sync-btn');
+  if (b) b.innerHTML = online ? '🟢 Live sync on' : '⚪ Offline — tap to retry';
 }
 function syncFromCloud() {
   if (!db) { showToast('No cloud connection'); return; }
-  db.ref('kitchenManager').once('value', snap => { applyCloud(snap.val()); render(); showToast('☁️ Synced'); });
+  db.ref(ROOT).once('value', snap => { applyCloud(snap.val()); render(); showToast('☁️ Synced'); });
 }
 function autoRecordIntake() {
   const wk = state.basketWeekKey;
@@ -674,7 +710,7 @@ function resetBasket() {
   state.basketWedKey  = getFriKey();
   state.basketWeekKey = getWeekKey();
   state.currentRecurring = null;
-  saveAll(); render(); showToast('🔄 Basket reset — ready for next week');
+  saveAll(BASKET_PATHS); render(); showToast('🔄 Basket reset — ready for next week');
 }
 
 // ─── RENDER DISPATCH ───────────────────────────────────────────────────────
@@ -728,7 +764,10 @@ function renderBasket() {
   }
   return html;
 }
-function tickItem(key) { state.basketTicks[key] = !state.basketTicks[key]; saveAll(); render(); }
+function tickItem(key) {
+  if (state.basketTicks[key]) delete state.basketTicks[key]; else state.basketTicks[key] = true;
+  saveAll(['basketTicks/'+key]); render();
+}
 
 // ──────────────────────────────────────────────────────────────────────────
 // 2. MENU PLANNER
@@ -838,7 +877,7 @@ function saveMenuNameInline(date, text) {
   if (!state.planner[date]) state.planner[date] = { menu:'', ingredients:[] };
   if (state.planner[date].menu === text) return; // no change, skip
   state.planner[date].menu = text;
-  saveAll();
+  saveAll(['planner/'+date]);
   // do NOT call render() here — blur fires before switchView completes
   // and would re-render planner over whichever view the user tapped
 }
@@ -853,14 +892,14 @@ function addFromPickers(date) {
   if (!state.planner[date].ingredients) state.planner[date].ingredients = [];
   const toAdd = allPicked.filter(v => !state.planner[date].ingredients.includes(v));
   state.planner[date].ingredients.push(...toAdd);
-  saveAll();
+  saveAll(['planner/'+date]);
   render();
   showToast(toAdd.length ? `Added: ${toAdd.join(', ')}` : 'Already added');
 }
 function removeIngredient(date, idx) {
   if (state.planner[date] && state.planner[date].ingredients) {
     state.planner[date].ingredients.splice(idx, 1);
-    saveAll(); render();
+    saveAll(['planner/'+date]); render();
   }
 }
 function closeMenuNameModal() { document.getElementById('menu-name-modal').classList.remove('open'); }
@@ -869,7 +908,7 @@ function saveMenuName() {
   const val = document.getElementById('menu-name-input').value.trim();
   if (!state.planner[editingMenuDate]) state.planner[editingMenuDate] = { menu:'', ingredients:[] };
   state.planner[editingMenuDate].menu = val;
-  saveAll(); closeMenuNameModal(); render();
+  saveAll(['planner/'+editingMenuDate]); closeMenuNameModal(); render();
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1080,7 +1119,7 @@ function renderRecurring() {
     </div>`;
   return html;
 }
-function selectRecurring(id) { state.currentRecurring = id; saveAll(); render(); }
+function selectRecurring(id) { state.currentRecurring = id; saveAll(['currentRecurring']); render(); }
 function applyRecurring(id) {
   const wk = getWeekKey();
   const m  = RECURRING_MENUS.find(x => x.id === id);
@@ -1101,7 +1140,7 @@ function applyRecurring(id) {
   if (idx >= 0) state.recurringHistory[idx].menuId = id;
   else state.recurringHistory.push({ weekKey:wk, menuId:id });
   state.lambWeekCount = (state.lambWeekCount||0) + 1;
-  saveAll(); showToast(`Menu ${id} applied to Thu & Sat`); render();
+  saveAll([...dates.map(d => 'planner/'+d), 'recurringHistory', 'lambWeekCount']); showToast(`Menu ${id} applied to Thu & Sat`); render();
 }
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
@@ -1110,10 +1149,12 @@ updateTopbarActions('planner');
 loadLocal();
 render(); // always render immediately from localStorage
 if (db) {
-  db.ref('kitchenManager').once('value', snap => {
-    applyCloud(snap.val());
-    render(); // re-render once cloud data arrives
-  });
+  // Live: fires on load and again whenever either phone changes anything
+  db.ref(ROOT).on('value', snap => { applyCloud(snap.val()); renderSoon(); },
+    err => { console.warn(err); setSyncStatus(false); showToast('⚠️ Cloud access denied — check Firebase rules'); });
+  db.ref('.info/connected').on('value', snap => setSyncStatus(!!snap.val()));
+} else {
+  setSyncStatus(false);
 }
 </script>
 
